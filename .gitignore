@@ -1,0 +1,117 @@
+### Gitignore file
+
+## Basic {{{1
+
+# Invisible files
+.*
+
+# Do include gitignore
+!.gitignore
+
+# Build directories
+build
+build-* 
+
+
+## Backup and patch files {{{1
+
+# Backup files (various editors)
+*~                                  
+*.bak                               
+
+# Patch files
+*.patch                             
+*.diff
+
+# Rejected patch leftovers
+*.orig                              
+*.rej
+
+# Temporary files
+*.tmp                               
+
+
+## C++ {{{1
+
+# Compiled object files
+*.slo                               
+*.lo
+*.o
+*.ko
+*.elf
+
+# Precompiled headers
+*.gch                               
+*.pch
+
+# Compiled executables
+*.exe                               
+*.out
+*.app
+TestSuite
+
+# Compiled shared libraries
+*.so                                
+*.so.*
+*.dylib
+*.dll
+
+# Compiled static libraries
+*.lai                               
+*.la
+*.lo
+*.a
+*.lib
+
+# Debug symbol
+*.dSYM                              
+
+# gcov profiling information
+*.gcno                              
+*.gcda
+*.gcov
+
+
+## CMake {{{1
+CMakeCache.txt
+CMakeFiles
+Makefile
+cmake_install.cmake
+install_manifest.txt
+
+# For internal use
+cmake.sh                            
+
+
+## Doxygen {{{1
+docs/html/
+docs/xml/
+docs/latex/
+
+
+## Windows {{{1
+
+# Thumbnails cache
+Thumbs.db                           
+ehthumbs.db
+
+# Custom folder configurations
+Desktop.ini                         
+
+# Windows installer
+*.msi                               
+
+# Shortcuts
+*.lnk                               
+
+# Vim swap files
+_*.s[a-w][a-z]                      
+
+
+## OS X {{{1
+Icon
+
+## }}}
+
+# vim: syntax=sh fdm=marker
+
