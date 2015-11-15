@@ -23,8 +23,16 @@ void ImageWidget::updateImage(const QImage& i) {
     setPixmap(mPixmap.scaled(kDisplaySize, kDisplaySize));
 }
 
-void ImageWidget::loadFromPath(const QString& path) {
-    updateImage(QImage{path});
+bool ImageWidget::loadFromPath(const QString& path) {
+    QImage img{path};
+    bool correctsize = QList<QSize> {
+        {64,64},
+        {512,512},
+        {4096, 4096}}.contains(img.size());
+    if(!correctsize) return false;
+
+    updateImage(img);
+    return true;
 }
 
 void ImageWidget::saveToPath(const QString& path) const {

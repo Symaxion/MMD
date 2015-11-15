@@ -7,6 +7,6 @@
 
 #include <QtGui/QImage>
 
-extern QImage spiralify(const QImage& in);
+extern QImage spiralify(const QImage& in, uint8_t colordepth);
 
 #endif /* SPIRALIFY_HPP_ */

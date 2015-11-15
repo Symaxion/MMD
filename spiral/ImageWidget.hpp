@@ -15,7 +15,7 @@ public:
     QImage image() const;
     void updateImage(const QImage& i);
 
-    void loadFromPath(const QString& path);
+    bool loadFromPath(const QString& path);
     void saveToPath(const QString& path) const;
 
     void mouseDoubleClickEvent(QMouseEvent* e) override;

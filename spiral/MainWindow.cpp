@@ -7,6 +7,7 @@
 #include "ImageWidget.hpp"
 #include "Spiralify.hpp"
 
+#include <QtWidgets/QMessageBox>
 #include <QtWidgets/QFileDialog>
 #include <QtWidgets/QHBoxLayout>
 #include <QtWidgets/QPushButton>
@@ -56,7 +57,13 @@ void MainWindow::loadImage() {
     QString fileName = QFileDialog::getOpenFileName(this,
             "Load Image", "", "Image files (*.png *.jpg *.bmp)");
     if(!fileName.isEmpty()) {
-        mImagePre->loadFromPath(fileName);
+        bool result = mImagePre->loadFromPath(fileName);
+        if(!result) {
+            QMessageBox::critical(this, "Incorrect image size",
+                    "Image size needs to be either 64x64, 512x512 or "
+                    "4096x4096.");
+            return;
+        }
         mImagePost->clear();
     }
 
@@ -73,5 +80,12 @@ void MainWindow::saveImage() {
 
 void MainWindow::run() {
     QImage from = mImagePre->image();
-    mImagePost->updateImage(spiralify(from));
+
+    unsigned colordepth = QHash<int, unsigned>{
+        {64, 4},
+        {512, 6},
+        {4096, 8},
+    }[from.height()];
+
+    mImagePost->updateImage(spiralify(from, colordepth));
 }
