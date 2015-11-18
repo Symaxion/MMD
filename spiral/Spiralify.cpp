@@ -66,11 +66,140 @@ private:
 
 #endif
 
-float distance(QColor c1, QColor c2) {
-    float r = c2.redF() - c1.redF(),
-          g = c2.greenF() - c1.greenF(),
-          b = c2.blueF() - c1.blueF();
-    return std::sqrt(r*r + b*b + g*g);
+constexpr static size_t kOffRed   = 2*8;
+constexpr static size_t kOffGreen = 1*8;
+constexpr static size_t kOffBlue  = 0*8;
+constexpr static size_t kOffDepth = 3*8;
+
+constexpr static uint32_t kMaskRed   = 0xFF << kOffRed;
+constexpr static uint32_t kMaskGreen = 0xFF << kOffGreen;
+constexpr static uint32_t kMaskBlue  = 0xFF << kOffBlue;
+constexpr static uint32_t kMaskDepth = 0xFF << kOffDepth;
+
+class Color {
+public:
+    Color() : mData{} {}
+
+    Color(QRgb rgb, uint8_t d) : mData{rgb} {
+        this->d(d);
+        requantize();
+    }
+
+    Color(uint8_t i, uint8_t j, uint8_t k, uint8_t d) {
+        this->d(d);
+        const size_t sd = (8 - d);
+        r(i << sd);
+        g(j << sd);
+        b(k << sd);
+    }
+
+    uint8_t r() const {
+        return (mData & kMaskRed) >> kOffRed;
+    }
+
+    uint8_t g() const {
+        return (mData & kMaskGreen) >> kOffGreen;
+    }
+
+    uint8_t b() const {
+        return (mData & kMaskBlue) >> kOffBlue;
+    }
+
+    uint8_t d() const {
+        return (mData & kMaskDepth) >> kOffDepth;
+    }
+
+
+    float rf() const { return float(r()); }
+    float gf() const { return float(g()); }
+    float bf() const { return float(b()); }
+
+
+    void r(uint8_t i) {
+        mData = (mData & ~kMaskRed) | (i << kOffRed);
+    }
+
+    void g(uint8_t i) {
+        mData = (mData & ~kMaskGreen) | (i << kOffGreen);
+    }
+
+    void b(uint8_t i) {
+        mData = (mData & ~kMaskBlue) | (i << kOffBlue);
+    }
+
+    void d(uint8_t i) {
+        mData = (mData & ~kMaskDepth) | (i << kOffDepth);
+    }
+
+    void requantize() {
+        const size_t sd = (8 - d());
+        r(r() << sd >> sd);
+        g(g() << sd >> sd);
+        b(b() << sd >> sd);
+    }
+
+    size_t index() const {
+         const size_t sd = (8 - d());
+         size_t rs = r() >> sd, gs = g() >> sd, bs = b() >> sd;
+         return rs << (2*d()) | gs << d() | bs;
+    }
+
+private:
+    uint32_t mData;
+};
+
+class Image {
+public:
+    Image(size_t w, size_t h) :
+            mWidth{w},
+            mHeight{h},
+            mData{new Color[w*h]} {
+
+    }
+
+    Image(const QImage& in, uint8_t d) : Image(in.width(), in.height()) {
+        for(unsigned j = 0; j < mHeight; ++j) {
+            const unsigned char* line = in.scanLine(j);
+            std::memcpy(mData + j*mWidth, line, mWidth * 4);
+            for(unsigned i = 0; i < mWidth; ++i) {
+                (*this)(i, j).d(d);
+                (*this)(i, j).requantize();
+            }
+        }
+    }
+
+    ~Image() {
+        delete[] mData;
+    }
+
+    size_t width() const { return mWidth; }
+    size_t height() const { return mHeight; }
+
+    Color& operator()(size_t i, size_t j) {
+        return mData[j*mWidth + i];
+    }
+
+    const Color& operator()(size_t i, size_t j) const {
+        return mData[j*mWidth + i];
+    }
+
+    operator QImage() const {
+        return QImage(
+            reinterpret_cast<const unsigned char*>(mData),
+            mWidth, mHeight, QImage::Format_RGB32);
+    }
+
+private:
+    size_t mWidth;
+    size_t mHeight;
+    Color* mData;
+};
+
+float distance(Color c1, Color c2) {
+    float r = c2.rf() - c1.rf(),
+          g = c2.gf() - c1.gf(),
+          b = c2.bf() - c1.bf();
+    return std::sqrt(r*r + g*g + b*b);
 }
 
 struct ColorSearch {
@@ -86,20 +215,16 @@ public:
         delete mList;
     }
 
-    QColor findNearestColor(QColor c) {
-        const int cpc = 1 << mDepth;
-        const int sd = (8 - mDepth);
+    Color findNearestColor(Color c) {
+        const uint8_t cpc = 1 << mDepth;
 
-        // TODO: class for this
-        QColor q = {c.red() >> sd, c.green() >> sd, c.blue() >> sd};
-
-        QColor best;
+        Color best;
         float bestdist = std::numeric_limits<float>::infinity();
 
-        for(int i = 0; i < cpc; ++i) {
-            for(int j = 0; j < cpc; ++j) {
-                for(int k = 0; k < cpc; ++k) {
-                    QColor compare{i, j, k};
+        for(uint8_t i = 0; i < cpc; ++i) {
+            for(uint8_t j = 0; j < cpc; ++j) {
+                for(uint8_t k = 0; k < cpc; ++k) {
+                    Color compare{i, j, k, mDepth};
                     if(!isColor(compare)) continue;
                     float dist = distance(c, compare);
                     if(dist < bestdist) {
@@ -112,19 +237,19 @@ public:
 
         removeColor(best);
 
-        return QColor{best.red() << sd, best.green() << sd, best.blue() << sd};
+        return best;
     }
 
-    size_t colorOffset(const QColor& c) const {
-        return c.red() << (mDepth*2) | c.green() << mDepth | c.blue();
+    size_t colorOffset(const Color& c) const {
+        return c.index();
     }
 
-    bool isColor(const QColor& c) const {
+    bool isColor(const Color& c) const {
         return mList[colorOffset(c)];
     }
 
 
-    void removeColor(const QColor& c) {
+    void removeColor(const Color& c) {
         mList[colorOffset(c)] = 0;
     }
 private:
@@ -133,21 +258,26 @@ private:
     bool* mList;
 };
 
-QImage spiralify(const QImage& in, uint8_t colordepth) {
+QImage spiralify(const QImage& qin, uint8_t colordepth) {
     // DO STUFF HERE
-    QImage out{in.size(), QImage::Format_RGB32};
+    Image in{qin, colordepth};
+    Image out{in.width(), in.height()};
 
     ColorSearch search{colordepth};
 
-    for(int i = 0; i < in.width(); ++i) {
-        for(int j = 0; j < in.height(); ++j) {
-            QColor c = in.pixel(i, j);
-            QColor outc = search.findNearestColor(c);
-            // std::fprintf(stderr, "## %d %d %d\n",
-            //         outc.red(), outc.green(), outc.blue());
-            out.setPixel(i, j, outc.rgb());
+    std::cerr << in.width() << "x" << in.height() << std::endl;
+
+    for(size_t j = 0; j < in.height(); ++j) {
+        for(size_t i = 0; i < in.width(); ++i) {
+            Color c = in(i, j);
+            Color outc = search.findNearestColor(c);
+            out(i, j) = outc;
+            std::cout << i%10 << std::flush;
         }
+        std::cout << " -- " << j << std::endl;
     }
 
-    return out;
+    std::cout << std::endl;
+
+    return QImage(out);
 }
