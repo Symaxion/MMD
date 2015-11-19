@@ -12,60 +12,6 @@
 #include <iostream>
 #include <limits>
 
-#if 0
-class ColorList {
-public:
-    struct ColorRef {
-        uint8_t* ref;
-        uint8_t bit;
-
-        operator bool() const {
-            return *ref & (1 << bit);
-        }
-
-        ColorRef& operator=(bool b) {
-            if(b) {
-                *ref |= (b << bit);
-            } else {
-                *ref &= ~(b << bit);
-            }
-            return *this;
-        }
-    };
-public:
-    explicit ColorList(uint8_t d) :
-            mColors{new uint8_t[(1<<(3*d))/8]}, mDepth{d} {
-        std::memset(mColors, 0xFF, numBytes());
-    }
-
-    ~ColorList() {
-        delete[] mColors;
-    }
-
-    size_t numColors() const {
-        return 1<<(3*mDepth);
-    }
-
-    size_t numBytes() {
-        return numColors() / 8;
-    }
-
-    ColorRef operator[](QColor c) {
-        size_t red = c.red(), green = c.green(), blue = c.blue();
-        red >>= (8 - mDepth);
-        green >>= (8 - mDepth);
-        blue >>= (8 - mDepth);
-        size_t bitoffset = red << (mDepth*2) | green << mDepth | blue;
-        return ColorRef{mColors + bitoffset/8, uint8_t(bitoffset%8)};
-    }
-
-private:
-    uint8_t* mColors;
-    uint8_t mDepth;
-};
-
-#endif
-
 constexpr static size_t kOffRed   = 2*8;
 constexpr static size_t kOffGreen = 1*8;
 constexpr static size_t kOffBlue  = 0*8;
