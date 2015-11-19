@@ -6,11 +6,14 @@
 
 #include <QtGui/QColor>
 
+#include <array>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
+#include <future>
 #include <iostream>
 #include <limits>
+#include <thread>
 
 constexpr static size_t kOffRed   = 2*8;
 constexpr static size_t kOffGreen = 1*8;
@@ -164,26 +167,57 @@ public:
     Color findNearestColor(Color c) {
         const uint8_t cpc = 1 << mDepth;
 
-        Color best;
-        float bestdist = std::numeric_limits<float>::infinity();
+        constexpr const unsigned int kNumThreads = 4;
+        using SearchResult = std::pair<float,Color>;
+        std::array<SearchResult,kNumThreads> bests;
+        std::array<std::thread, kNumThreads> threads;
 
-        for(uint8_t i = 0; i < cpc; ++i) {
-            for(uint8_t j = 0; j < cpc; ++j) {
-                for(uint8_t k = 0; k < cpc; ++k) {
-                    Color compare{i, j, k, mDepth};
-                    if(!isColor(compare)) continue;
-                    float dist = distance(c, compare);
-                    if(dist < bestdist) {
-                        bestdist = dist;
-                        best = compare;
+        const uint8_t slice = cpc / kNumThreads;
+
+        // Search in parallel using kNumThreads threads
+        for(unsigned tid = 0; tid < kNumThreads; ++tid) {
+            threads[tid] = std::thread([&] {
+
+                Color best;
+                float bestdist = std::numeric_limits<float>::infinity();
+
+                const uint8_t begin = slice * tid;
+                const uint8_t end = begin + slice;
+
+                for(uint8_t i = begin; i < end; ++i) {
+                    for(uint8_t j = 0; j < cpc; ++j) {
+                        for(uint8_t k = 0; k < cpc; ++k) {
+                            Color compare{i, j, k, mDepth};
+                            if(!isColor(compare)) continue;
+                            float dist = distance(c, compare);
+                            if(dist < bestdist) {
+                                bestdist = dist;
+                                best = compare;
+                            }
+                        }
                     }
                 }
-            }
+
+                bests[tid] = {bestdist, best};
+
+            });
         }
 
-        removeColor(best);
+        // Wait for threads to finish
+        for(unsigned tid = 0; tid < kNumThreads; ++tid) {
+            threads[tid].join();
+        }
 
-        return best;
+        // Get best result
+        auto it = std::min_element(bests.begin(), bests.end(),
+            [&](const SearchResult& s1, const SearchResult& s2) {
+                return s1.first < s2.first;
+            });
+
+        removeColor(it->second);
+
+        return it->second;
+
     }
 
     size_t colorOffset(const Color& c) const {
@@ -218,9 +252,8 @@ QImage spiralify(const QImage& qin, uint8_t colordepth) {
             Color c = in(i, j);
             Color outc = search.findNearestColor(c);
             out(i, j) = outc;
-            std::cout << i%10 << std::flush;
         }
-        std::cout << " -- " << j << std::endl;
+        std::cout << "." << std::flush;
     }
 
     std::cout << std::endl;
