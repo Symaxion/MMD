@@ -7,6 +7,7 @@
 #include <QtGui/QColor>
 
 #include <array>
+#include <chrono>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
@@ -132,10 +133,13 @@ public:
         return mData[j*mWidth + i];
     }
 
-    operator QImage() const {
-        return QImage(
+    operator QImage() {
+        QImage img(
             reinterpret_cast<const unsigned char*>(mData),
-            mWidth, mHeight, QImage::Format_RGB32);
+            mWidth, mHeight, QImage::Format_RGB32,
+            [](void* data) { delete[] (Color*)data; }, mData);
+        mData = nullptr;
+        return img;
     }
 
 private:
@@ -176,7 +180,7 @@ public:
 
         // Search in parallel using kNumThreads threads
         for(unsigned tid = 0; tid < kNumThreads; ++tid) {
-            threads[tid] = std::thread([&] {
+            threads[tid] = std::thread([&,tid] {
 
                 Color best;
                 float bestdist = std::numeric_limits<float>::infinity();
@@ -214,6 +218,7 @@ public:
                 return s1.first < s2.first;
             });
 
+
         removeColor(it->second);
 
         return it->second;
@@ -247,6 +252,37 @@ QImage spiralify(const QImage& qin, uint8_t colordepth) {
 
     std::cerr << in.width() << "x" << in.height() << std::endl;
 
+    // Start position
+    int i, j;
+    i = j = in.width() / 2;
+
+    // Center pixel
+    out(i, j) = search.findNearestColor(in(i, j));
+
+    // Iterate over image in a spiral shape
+    int dx = 1, dy = -1;
+    unsigned n = 1;
+
+    // I have no idea why this works (shouldn't this be height + 1?)
+    while(n < in.height()) {
+        for(unsigned k = 0; k < n; ++k) {
+            i += dx;
+            if(i < 0 || i >= int(in.width())) continue;
+            out(i, j) = search.findNearestColor(in(i, j));
+        }
+
+        for(unsigned k = 0; k < n; ++k) {
+            j += dy;
+            if(j < 0 || j >= int(in.height())) continue;
+            out(i, j) = search.findNearestColor(in(i, j));
+        }
+
+        std::cout << "." << std::flush;
+        ++n;
+        dx = -dx; dy = -dy;
+    }
+
+#if 0
     for(size_t j = 0; j < in.height(); ++j) {
         for(size_t i = 0; i < in.width(); ++i) {
             Color c = in(i, j);
@@ -255,6 +291,7 @@ QImage spiralify(const QImage& qin, uint8_t colordepth) {
         }
         std::cout << "." << std::flush;
     }
+#endif
 
     std::cout << std::endl;
 
